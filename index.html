@@ -2,21 +2,76 @@
 <head><title>LKG Test</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="freiburg.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
-<script src="https://unpkg.com/leaflet.featuregroup.subgroup@1.0.2/dist/leaflet.featuregroup.subgroup.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!--<script src="https://unpkg.com/leaflet.markercluster.layersupport@2.0.1/dist/leaflet.markercluster.layersupport.js"></script>
+<script src="https://unpkg.com/leaflet.featuregroup.subgroup@1.0.2/dist/leaflet.featuregroup.subgroup.js"></script>-->
 <script src="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/albburtsev/Leaflet.geojsonCSS/leaflet.geojsoncss.min.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/0.4.0/MarkerCluster.css" rel="stylesheet" />
 <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/0.4.0/MarkerCluster.Default.css" rel="stylesheet" />
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" >
 <link href="https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css" rel='stylesheet' />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 </head>
 <body>
-<h1>Lagekartentest</h1>
-<div style="height:500px;z-index: 0;"></div><script>
-var baselayers={"OpenStreetMap (OSM)": {"url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "default": true, "type": "tile"}}
+<h1 style="text-align:center">Lagekartentest</h1>
+<div style="height:90%;z-index: 0;" id="map"></div><script>
+function generateLeafletPopup(feature, layer){
+    var popup="<b>"
+    if("name" in feature && feature.name!=""){
+        popup+="<a href=\""+feature.id+"\" class=\"footeruri\" target=\"_blank\">"+feature.name+"</a></b><br/><ul>"
+    }else{
+        popup+="<a href=\""+feature.id+"\" class=\"footeruri\" target=\"_blank\">"+feature.id+"</a></b><br/><ul>"
+    }
+    for(prop in feature.properties){
+        popup+="<li>"
+        if(prop.startsWith("http")){
+            popup+="<a href=\""+prop+"\" target=\"_blank\">"+prop.substring(prop.lastIndexOf('/')+1)+"</a>"
+        }else{
+            popup+=prop
+        }
+        popup+=" : "
+        if(Array.isArray(feature.properties[prop]) && feature.properties[prop].length>1){
+            popup+="<ul>"
+            for(item of feature.properties[prop]){
+                popup+="<li>"
+                if((item+"").startsWith("http")){
+                    popup+="<a href=\""+item+"\" target=\"_blank\">"+item.substring(item.lastIndexOf('/')+1)+"</a>"
+                }else{
+                    popup+=item
+                }
+                popup+="</li>"
+            }
+            popup+="</ul>"
+        }else if(Array.isArray(feature.properties[prop]) && (feature.properties[prop][0]+"").startsWith("http")){
+            popup+="<a href=\""+rewriteLink(feature.properties[prop][0])+"\" target=\"_blank\">"+feature.properties[prop][0].substring(feature.properties[prop][0].lastIndexOf('/')+1)+"</a>"
+        }else{
+            popup+=feature.properties[prop]+""
+        }
+        popup+="</li>"
+    }
+    popup+="</ul>"
+    return popup
+}
+
+var overlayMaps={}
+var baseMaps={"OpenStreetMap (OSM)": {"url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "default": true, "type": "tile"}}
 var map = L.map('map',{fullscreenControl: true,fullscreenControlOptions: {position: 'topleft'}}).setView([51.505, -0.09], 13);
-layerr=L.geoJSON.css(feature,{
+baseMaps["OpenStreetMap (OSM)"]=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'})
+baseMaps["OpenStreetMap (OSM)"].addTo(map);
+L.Control.geocoder().addTo(map);
+L.Polygon.addInitHook(function () {
+        this._latlng = this._bounds.getCenter();
+    });
+    L.Polygon.include({
+        getLatLng: function () {
+            return this._latlng;
+        },
+        setLatLng: function () {} // Dummy method.
+    });
+	var bounds = L.latLngBounds([]);
+layerr=L.geoJSON.css(freiburg,{
         pointToLayer: function(feature, latlng){
                       var greenIcon = new L.Icon({
                         iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png',
@@ -25,24 +80,27 @@ layerr=L.geoJSON.css(feature,{
                     });
                     return L.marker(latlng, {icon: greenIcon});
         },onEachFeature: function (feature, layer) {layer.bindPopup(generateLeafletPopup(feature, layer))}})
-        layername="Content "+counter
-        if("name" in feature) {
-            layername = feature["name"]
+        layername="Content "
+        if("name" in freiburg) {
+            layername = freiburg["name"]
         }else {
             counter += 1
         }
-		markercluster.checkIn(layerr);
-        overlayMaps[layername]=L.featureGroup.subGroup(markercluster,[layerr])
-        if(first) {
-            overlayMaps[layername].addTo(map);
-            var layerBounds = layerr.getBounds();
-            bounds.extend(layerBounds);
-            map.fitBounds(bounds);
-            first = false
-        }
-        centerpoints.push(layerr.getBounds().getCenter());
-    }
+        overlayMaps[layername]=layerr
+		overlayMaps[layername].addTo(map);
+		var layerBounds = layerr.getBounds();
+		bounds.extend(layerBounds);
+		map.fitBounds(bounds);
+		first = false
 	layercontrol=L.control.layers(baseMaps,overlayMaps).addTo(map)
+L.control.Legend({
+    position: "bottomright",
+    legends: [{
+        label: "Marker1",
+        type: "image",
+        url: "marker/marker-red.png",
+    }]
+}).addTo(map);
 </script>
 </body>
 </html>
